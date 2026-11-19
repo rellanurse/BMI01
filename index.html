@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบคำนวณและประเมินภาวะโภชนาการ BMI & Child Growth Evaluator</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts (Kanit & Inter) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js CDN for Growth Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Kanit', 'Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        health: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                        },
+                        medical: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Kanit', sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            min-height: 100vh;
+        }
+
+        /* Gauge meter animations */
+        .gauge-pointer {
+            transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        /* Print styles */
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            body {
+                background: white !important;
+            }
+            .print-full-width {
+                width: 100% !important;
+                max-width: 100% !important;
+                box-shadow: none !important;
+                border: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased py-6 px-3 sm:px-6">
+
+    <!-- Main Container -->
+    <div class="max-w-6xl mx-auto">
+        
+        <!-- Header -->
+        <header class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 sm:p-6 mb-6">
+            <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-medical-600 to-teal-400 flex items-center justify-center text-white shadow-md shadow-medical-500/20">
+                        <i class="fa-solid fa-heart-pulse text-2xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                            ระบบคำนวณและประเมินภาวะโภชนาการ
+                            <span class="text-xs bg-medical-100 text-medical-700 px-2.5 py-1 rounded-full font-medium border border-medical-200">BMI & Child Growth</span>
+                        </h1>
+                        <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
+                            ประเมินดัชนีมวลกาย เกณฑ์การเจริญเติบโต และความเสี่ยงทางสุขภาพแม่นยำตามมาตรฐานสธ.ไทย และ WHO
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Security & Standards Badge -->
+                <div class="flex flex-wrap items-center gap-2 text-xs no-print">
+                    <span class="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 px-3 py-1.5 rounded-lg font-medium">
+                        <i class="fa-solid fa-shield-halved text-emerald-500"></i>
+                        ประมวลผลปลอดภัย 100% (Client-Side Only)
+                    </span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Grid Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- LEFT PANEL: Form Inputs -->
+            <div class="lg:col-span-5 space-y-6">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 sm:p-6 no-print">
+                    
+                    <!-- Age Group Toggle Switch -->
+                    <div class="mb-5">
+                        <label class="block text-sm font-semibold text-slate-700 mb-2">
+                            <i class="fa-solid fa-users text-medical-500 mr-1.5"></i> เลือกหมวดหมู่ผู้ใช้งาน
+                        </label>
+                        <div class="grid grid-cols-2 gap-1.5 p-1.5 bg-slate-100 rounded-xl">
+                            <button type="button" id="tabChild" onclick="switchMode('child')" class="py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 bg-white text-medical-600 shadow-sm">
+                                <i class="fa-solid fa-child font-bold"></i> &lt; 18 ปี (เด็ก/วัยรุ่น)
+                            </button>
+                            <button type="button" id="tabAdult" onclick="switchMode('adult')" class="py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 text-slate-600 hover:text-slate-900">
+                                <i class="fa-solid fa-user"></i> ≥ 18 ปี (ผู้ใหญ่)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Input Form -->
+                    <form id="bmiForm" onsubmit="event.preventDefault(); calculate();" class="space-y-4">
+                        
+                        <!-- Common Field: Weight & Height -->
+                        <div class="grid grid-cols-2 gap-3 sm:gap-4">
+                            <div>
+                                <label class="block text-xs sm:text-sm font-semibold text-slate-700 mb-1">
+                                    น้ำหนัก (กิโลกรัม) <span class="text-rose-500">*</span>
+                                </label>
+                                <div class="relative">
+                                    <input type="number" id="weight" step="0.1" min="1" max="300" placeholder="เช่น 55.5" required
+                                        class="w-full pl-3 pr-10 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-medical-500 focus:border-medical-500 text-sm font-medium transition-all">
+                                    <span class="absolute right-3 top-2.5 text-xs text-slate-400 font-medium">กก.</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs sm:text-sm font-semibold text-slate-700 mb-1">
+                                    ส่วนสูง (เซนติเมตร) <span class="text-rose-500">*</span>
+                                </label>
+                                <div class="relative">
+                                    <input type="number" id="height" step="0.1" min="30" max="250" placeholder="เช่น 165" required
+                                        class="w-full pl-3 pr-10 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-medical-500 focus:border-medical-500 text-sm font-medium transition-all">
+                                    <span class="absolute right-3 top-2.5 text-xs text-slate-400 font-medium">ซม.</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sex Field -->
+                        <div>
+                            <label class="block text-xs sm:text-sm font-semibold text-slate-700 mb-1">
+                                เพศทางชีวภาพ <span class="text-rose-500">*</span>
+                            </label>
+                            <div class="grid grid-cols-2 gap-3">
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="sex" value="male" checked class="peer sr-only">
+                                    <div class="py-2 px-3 text-center border border-slate-200 rounded-xl peer-checked:border-medical-500 peer-checked:bg-medical-50 peer-checked:text-medical-700 text-xs sm:text-sm font-medium text-slate-600 transition-all flex items-center justify-center gap-1.5">
+                                        <i class="fa-solid fa-mars text-blue-500"></i> ชาย (Male)
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="sex" value="female" class="peer sr-only">
+                                    <div class="py-2 px-3 text-center border border-slate-200 rounded-xl peer-checked:border-pink-500 peer-checked:bg-pink-50 peer-checked:text-pink-700 text-xs sm:text-sm font-medium text-slate-600 transition-all flex items-center justify-center gap-1.5">
+                                        <i class="fa-solid fa-venus text-pink-500"></i> หญิง (Female)
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- CHILD SPECIFIC INPUTS -->
+                        <div id="childInputs" class="space-y-4 pt-1">
+                            
+                            <!-- Age Entry Method Toggle -->
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="text-xs sm:text-sm font-semibold text-slate-700">
+                                        อายุของเด็ก <span class="text-rose-500">*</span>
+                                    </label>
+                                    <button type="button" onclick="toggleAgeInputMode()" class="text-xs text-medical-600 hover:underline font-medium">
+                                        <i class="fa-solid fa-arrow-rotate-left mr-1"></i> สลับเป็น <span id="ageModeToggleText">ใช้วันเกิด (DOB)</span>
+                                    </button>
+                                </div>
+
+                                <!-- Mode A: Year & Month Direct Input -->
+                                <div id="ageDirectContainer" class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <div class="relative">
+                                            <input type="number" id="ageYears" min="0" max="17" placeholder="ปี (0-17)" value="8"
+                                                class="w-full pl-3 pr-8 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-medical-500 text-sm font-medium">
+                                            <span class="absolute right-3 top-2.5 text-xs text-slate-400">ปี</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="relative">
+                                            <input type="number" id="ageMonths" min="0" max="11" placeholder="เดือน (0-11)" value="0"
+                                                class="w-full pl-3 pr-10 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-medical-500 text-sm font-medium">
+                                            <span class="absolute right-3 top-2.5 text-xs text-slate-400">เดือน</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Mode B: Date of Birth Picker (Hidden by default) -->
+                                <div id="ageDobContainer" class="hidden">
+                                    <input type="date" id="dobInput" onchange="calculateAgeFromDob()"
+                                        class="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-medical-500 text-sm font-medium">
+                                    <p id="dobCalculatedText" class="text-xs text-medical-600 mt-1 font-medium hidden"></p>
+                                </div>
+                            </div>
+
+                            <!-- Child Reference Standard -->
+                            <div>
+                                <label class="block text-xs sm:text-sm font-semibold text-slate-700 mb-1">
+                                    มาตรฐานอ้างอิงการเจริญเติบโต
+                                </label>
+                                <select id="childStandard" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-medical-500 text-xs sm:text-sm font-medium bg-white">
+                                    <option value="moph" selected>เกณฑ์อ้างอิงกรมอนามัย (กระทรวงสาธารณสุขไทย)</option>
+                                    <option value="who">เกณฑ์อ้างอิงองค์การอนามัยโลก (WHO 2007)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- ADULT SPECIFIC INPUTS -->
+                        <div id="adultInputs" class="space-y-4 pt-1 hidden">
+                            <!-- Adult Cutoff Standard -->
+                            <div>
+                                <label class="block text-xs sm:text-sm font-semibold text-slate-700 mb-1">
+                                    เกณฑ์การประเมิน BMI ผู้ใหญ่
+                                </label>
+                                <select id="adultStandard" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-medical-500 text-xs sm:text-sm font-medium bg-white">
+                                    <option value="asian" selected>เกณฑ์ประชากรเอเชีย (WHO Asian Cutoffs) [แนะนำ]</option>
+                                    <option value="international">เกณฑ์สากล (WHO International Cutoffs)</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-xs sm:text-sm font-semibold text-slate-700 mb-1">
+                                    ระบุอายุ (ปี) <span class="text-xs font-normal text-slate-400">(สำหรับคำนวณเกณฑ์ทั่วไป)</span>
+                                </label>
+                                <input type="number" id="adultAge" min="18" max="120" value="30" placeholder="เช่น 30"
+                                    class="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-medical-500 text-sm font-medium">
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="pt-2 flex items-center gap-2">
+                            <button type="submit" class="flex-1 bg-gradient-to-r from-medical-600 to-teal-600 hover:from-medical-700 hover:to-teal-700 text-white font-semibold py-3 px-4 rounded-xl shadow-md shadow-medical-500/20 transition-all flex items-center justify-center gap-2 text-sm">
+                                <i class="fa-solid fa-calculator"></i> คำนวณและประเมินผล
+                            </button>
+                            <button type="button" onclick="resetForm()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium py-3 px-3.5 rounded-xl transition-all text-sm" title="ล้างข้อมูล">
+                                <i class="fa-solid fa-rotate-left"></i>
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Preset Samples (Quick Fill) -->
+                    <div class="mt-5 pt-4 border-t border-slate-100">
+                        <p class="text-xs font-semibold text-slate-400 mb-2">💡 ตัวอย่างชุดข้อมูลทดสอบไว:</p>
+                        <div class="flex flex-wrap gap-1.5">
+                            <button onclick="loadPreset('child_boy_8')" class="text-xs bg-slate-50 hover:bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg border border-slate-200 transition-all">
+                                👦 เด็กชาย 8 ปี (สมส่วน)
+                            </button>
+                            <button onclick="loadPreset('child_girl_12')" class="text-xs bg-slate-50 hover:bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg border border-slate-200 transition-all">
+                                👧 เด็กหญิง 12 ปี (เสี่ยงอ้วน)
+                            </button>
+                            <button onclick="loadPreset('adult_man_30')" class="text-xs bg-slate-50 hover:bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg border border-slate-200 transition-all">
+                                👨 ผู้ใหญ่ชาย (ปกติ)
+                            </button>
+                            <button onclick="loadPreset('adult_woman_40')" class="text-xs bg-slate-50 hover:bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg border border-slate-200 transition-all">
+                                👩 ผู้ใหญ่หญิง (น้ำหนักเกิน)
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- RIGHT PANEL: Dashboard Results & Charts -->
+            <div class="lg:col-span-7 space-y-6 print-full-width">
+                
+                <!-- RESULT CARD -->
+                <div id="resultCard" class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 sm:p-6 transition-all">
+                    
+                    <!-- Result Top Summary Header -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                        <div>
+                            <span id="resultCategoryLabel" class="text-xs font-semibold uppercase tracking-wider text-medical-600">ผลการประเมินภาวะโภชนาการ</span>
+                            <h2 id="resultStatusText" class="text-2xl font-bold text-slate-900 mt-0.5">กรุณากรอกข้อมูลและกดคำนวณ</h2>
+                        </div>
+                        <div id="statusBadge" class="self-start sm:self-center px-3.5 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-slate-400"></span> รอคำนวณ
+                        </div>
+                    </div>
+
+                    <!-- Metrics Grid -->
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 my-5">
+                        
+                        <!-- Metric 1: BMI -->
+                        <div class="bg-slate-50 rounded-xl p-3.5 border border-slate-100 text-center">
+                            <p class="text-xs text-slate-500 font-medium mb-1">ค่า BMI (kg/m²)</p>
+                            <p id="bmiValue" class="text-2xl sm:text-3xl font-extrabold text-slate-800">--</p>
+                            <p id="bmiSubtext" class="text-xs text-slate-400 mt-1">ดัชนีมวลกาย</p>
+                        </div>
+
+                        <!-- Metric 2: Z-Score or Category Range -->
+                        <div class="bg-slate-50 rounded-xl p-3.5 border border-slate-100 text-center">
+                            <p id="metric2Title" class="text-xs text-slate-500 font-medium mb-1">ค่าเบี่ยงเบน Z-Score</p>
+                            <p id="metric2Value" class="text-2xl sm:text-3xl font-extrabold text-medical-600">--</p>
+                            <p id="metric2Subtext" class="text-xs text-slate-400 mt-1">เทียบค่าเฉล่ายมาตรฐาน</p>
+                        </div>
+
+                        <!-- Metric 3: Percentile / Cutoff -->
+                        <div class="col-span-2 sm:col-span-1 bg-slate-50 rounded-xl p-3.5 border border-slate-100 text-center">
+                            <p id="metric3Title" class="text-xs text-slate-500 font-medium mb-1">ตำแหน่ง Percentile</p>
+                            <p id="metric3Value" class="text-2xl sm:text-3xl font-extrabold text-slate-800">--</p>
+                            <p id="metric3Subtext" class="text-xs text-slate-400 mt-1">เปอร์เซ็นไทล์เทียบรุ่นอายุ</p>
+                        </div>
+
+                    </div>
+
+                    <!-- Healthy Weight Range & Difference Box -->
+                    <div class="bg-emerald-50/60 border border-emerald-200/70 rounded-xl p-4 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div class="flex items-start gap-3">
+                            <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <i class="fa-solid fa-weight-scale text-lg"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-xs font-semibold text-emerald-900 uppercase">ช่วงน้ำหนักที่เหมาะสมตามส่วนสูงนี้</h4>
+                                <p id="healthyWeightRange" class="text-sm font-bold text-emerald-700 mt-0.5">-- - -- กิโลกรัม</p>
+                                <p id="weightDiffAdvice" class="text-xs text-emerald-800 mt-0.5">กรุณากรอกข้อมูลส่วนสูงและน้ำหนัก</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VISUAL CHART SECTION -->
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h3 id="chartTitle" class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                                <i class="fa-solid fa-chart-line text-medical-500"></i> แผนภูมิตำแหน่งภาวะโภชนาการ
+                            </h3>
+                            <span id="chartSubtitle" class="text-xs text-slate-400"></span>
+                        </div>
+
+                        <!-- ADULT BMI GAUGE METER -->
+                        <div id="adultGaugeContainer" class="bg-slate-50 rounded-xl p-4 border border-slate-200/60">
+                            <!-- Spectrum Bar -->
+                            <div class="relative h-6 rounded-full w-full bg-gradient-to-r from-sky-400 via-emerald-400 via-amber-400 to-rose-500 overflow-hidden shadow-inner flex">
+                                <div class="w-[23.3%] border-r border-white/40 text-[10px] text-white font-bold flex items-center justify-center">ผอม</div>
+                                <div class="w-[29.4%] border-r border-white/40 text-[10px] text-white font-bold flex items-center justify-center">ปกติ</div>
+                                <div class="w-[13.3%] border-r border-white/40 text-[10px] text-white font-bold flex items-center justify-center">ท้วม</div>
+                                <div class="w-[34%] text-[10px] text-white font-bold flex items-center justify-center">อ้วน</div>
+                            </div>
+                            <!-- Pointer Marker -->
+                            <div class="relative h-6 mt-1">
+                                <div id="gaugePointer" class="gauge-pointer absolute top-0 -ml-2 text-center" style="left: 0%;">
+                                    <i class="fa-solid fa-caret-up text-slate-800 text-lg block -mb-1"></i>
+                                    <span id="pointerBmiTag" class="text-[10px] font-bold bg-slate-800 text-white px-1.5 py-0.5 rounded shadow">--</span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between text-[11px] text-slate-400 font-medium px-1 mt-1">
+                                <span>15.0</span>
+                                <span>18.5</span>
+                                <span id="gaugeNormalMax">23.0</span>
+                                <span id="gaugeOverweightMax">25.0</span>
+                                <span>35.0+</span>
+                            </div>
+                        </div>
+
+                        <!-- CHILD GROWTH CHART CANVAS -->
+                        <div id="childChartContainer" class="bg-white rounded-xl p-3 border border-slate-200/80 hidden">
+                            <div class="h-64 sm:h-72 w-full">
+                                <canvas id="growthChartCanvas"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- HEALTH ADVICE / RECOMMENDATIONS CARD -->
+                    <div class="mt-6 pt-5 border-t border-slate-100">
+                        <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-user-doctor text-teal-600"></i> คำแนะนำและข้อปฏิบัติด้านสุขภาพเชิงรุก
+                        </h3>
+                        <div id="adviceContent" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                                <p class="font-semibold text-slate-700 mb-1"><i class="fa-solid fa-utensils text-amber-500 mr-1"></i> ด้านโภชนาการ</p>
+                                <p id="nutritionAdvice" class="text-slate-600">กรุณากรอกข้อมูลเพื่อรับคำแนะนำ</p>
+                            </div>
+                            <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                                <p class="font-semibold text-slate-700 mb-1"><i class="fa-solid fa-person-running text-medical-500 mr-1"></i> การออกกำลังกาย / กิจกรรม</p>
+                                <p id="exerciseAdvice" class="text-slate-600">กรุณากรอกข้อมูลเพื่อรับคำแนะนำ</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Print / Export Tools -->
+                    <div class="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between no-print">
+                        <button onclick="window.print()" class="text-xs font-semibold text-slate-600 hover:text-medical-600 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition-all flex items-center gap-1.5">
+                            <i class="fa-solid fa-print"></i> พิมพ์ / บันทึกรายงาน PDF
+                        </button>
+                        <span class="text-[11px] text-slate-400">อัปเดตระบบตามมาตรฐานโภชนาการล่าสุด</span>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+
+        <!-- FOOTER: Clinical Governance & Privacy -->
+        <footer class="mt-8 bg-white rounded-2xl border border-slate-200/80 p-5 text-xs text-slate-500 space-y-3">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div class="flex items-center gap-2 font-semibold text-slate-700">
+                    <i class="fa-solid fa-circle-info text-medical-500"></i> ข้อกำหนดและแหล่งอ้างอิงข้อมูลทางการแพทย์
+                </div>
+                <div class="text-[11px] text-slate-400">
+                    กรมอนามัย กระทรวงสาธารณสุข & WHO Growth Reference 2007
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 leading-relaxed text-[11px]">
+                <div>
+                    <p class="font-semibold text-slate-600 mb-0.5">⚠️ ข้อจำกัดและข้อความปฏิเสธความรับผิดชอบ (Medical Disclaimer):</p>
+                    <p>
+                        ผลการคำนวณและประเมินดัชนีมวลกาย (BMI) และ Z-Score เป็นเครื่องมือคัดกรองเบื้องต้นทางภาวะโภชนาการเท่านั้น ไม่สามารถนำไปใช้ทดแทนการวินิจฉัยโรคทางการแพทย์โดยแพทย์หรือนักโภชนาการได้ ในกลุ่มนักกีฬาที่มีมวลกล้ามเนื้อสูง หญิงตั้งครรภ์ หรือผู้ป่วยภาวะบวมน้ำ อาจมีค่าคลาดเคลื่อนได้
+                    </p>
+                </div>
+                <div>
+                    <p class="font-semibold text-slate-600 mb-0.5">🔒 นโยบายความเป็นส่วนตัว (Privacy Guarantee):</p>
+                    <p>
+                        ระบบประมวลผลข้อมูลสุขภาพทั้งหมด (วันเกิด น้ำหนัก ส่วนสูง) บนเว็บเบราว์เซอร์ของท่านโดยตรง (Client-Side In-Memory Computation) ไม่มีการส่ง บันทึก หรือเก็บบันทึกข้อมูลส่วนบุคคลไปยังเครื่องเซิร์ฟเวอร์ภายนอกใดๆ ทั้งสิ้น
+                    </p>
+                </div>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- JAVASCRIPT LOGIC & LMS DATASETS -->
+    <script>
+        // Global state variable
+        let currentMode = 'child'; // 'child' or 'adult'
+        let currentAgeMode = 'direct'; // 'direct' or 'dob'
+        let growthChartInstance = null;
+
+        // LMS DATASET FOR CHILD BMI-FOR-AGE (Ages 2 to 18 years / 24 to 216 months)
+        // Values derived from Thai Ministry of Public Health (MOPH) & WHO Growth Reference Standards
+        // Structure: [AgeInMonths, L, M, S]
+        const LMS_DATA = {
+            moph: {
+                male: [
+                    [24, -0.32, 16.02, 0.082], [36, -0.34, 15.65, 0.083], [48, -0.37, 15.40, 0.085],
+                    [60, -0.40, 15.31, 0.088], [72, -0.45, 15.35, 0.093], [84, -0.52, 15.52, 0.099],
+                    [96, -0.60, 15.83, 0.107], [108, -0.70, 16.27, 0.116], [120, -0.80, 16.85, 0.125],
+                    [132, -0.90, 17.55, 0.133], [144, -0.98, 18.32, 0.139], [156, -1.05, 19.12, 0.143],
+                    [168, -1.10, 19.90, 0.145], [180, -1.13, 20.62, 0.145], [192, -1.15, 21.25, 0.144],
+                    [204, -1.16, 21.78, 0.142], [216, -1.16, 22.20, 0.140]
+                ],
+                female: [
+                    [24, -0.38, 15.70, 0.086], [36, -0.41, 15.35, 0.088], [48, -0.45, 15.15, 0.091],
+                    [60, -0.50, 15.10, 0.095], [72, -0.57, 15.18, 0.101], [84, -0.65, 15.42, 0.109],
+                    [96, -0.75, 15.82, 0.118], [108, -0.86, 16.36, 0.127], [120, -0.96, 17.02, 0.135],
+                    [132, -1.05, 17.78, 0.140], [144, -1.12, 18.58, 0.143], [156, -1.17, 19.35, 0.144],
+                    [168, -1.20, 20.02, 0.143], [180, -1.21, 20.55, 0.141], [192, -1.20, 20.95, 0.138],
+                    [204, -1.18, 21.22, 0.135], [216, -1.15, 21.40, 0.132]
+                ]
+            },
+            who: {
+                male: [
+                    [60, -0.42, 15.28, 0.088], [72, -0.49, 15.34, 0.094], [84, -0.57, 15.53, 0.101],
+                    [96, -0.66, 15.86, 0.109], [108, -0.76, 16.31, 0.118], [120, -0.85, 16.88, 0.126],
+                    [132, -0.94, 17.57, 0.133], [144, -1.01, 18.34, 0.138], [156, -1.07, 19.14, 0.142],
+                    [168, -1.11, 19.92, 0.143], [180, -1.13, 20.64, 0.143], [192, -1.14, 21.27, 0.141],
+                    [204, -1.13, 21.80, 0.138], [216, -1.11, 22.23, 0.135]
+                ],
+                female: [
+                    [60, -0.54, 15.12, 0.096], [72, -0.62, 15.22, 0.103], [84, -0.71, 15.48, 0.112],
+                    [96, -0.81, 15.89, 0.121], [108, -0.91, 16.44, 0.130], [120, -1.01, 17.10, 0.137],
+                    [132, -1.09, 17.85, 0.142], [144, -1.15, 18.64, 0.144], [156, -1.19, 19.41, 0.144],
+                    [168, -1.21, 20.07, 0.142], [180, -1.21, 20.59, 0.139], [192, -1.19, 20.98, 0.135],
+                    [204, -1.16, 21.24, 0.132], [216, -1.13, 21.41, 0.129]
+                ]
+            }
+        };
+
+        // Switch between Child (<18) and Adult (>=18) Modes
+        function switchMode(mode) {
+            currentMode = mode;
+            const tabChild = document.getElementById('tabChild');
+            const tabAdult = document.getElementById('tabAdult');
+            const childInputs = document.getElementById('childInputs');
+            const adultInputs = document.getElementById('adultInputs');
+            const adultGaugeContainer = document.getElementById('adultGaugeContainer');
+            const childChartContainer = document.getElementById('childChartContainer');
+
+            if (mode === 'child') {
+                tabChild.className = "py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 bg-white text-medical-600 shadow-sm";
+                tabAdult.className = "py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 text-slate-600 hover:text-slate-900";
+                childInputs.classList.remove('hidden');
+                adultInputs.classList.add('hidden');
+                adultGaugeContainer.classList.add('hidden');
+                childChartContainer.classList.remove('hidden');
+                document.getElementById('resultCategoryLabel').innerText = "ผลการประเมินภาวะโภชนาการ (เด็กและวัยรุ่น)";
+            } else {
+                tabAdult.className = "py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 bg-white text-medical-600 shadow-sm";
+                tabChild.className = "py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 text-slate-600 hover:text-slate-900";
+                adultInputs.classList.remove('hidden');
+                childInputs.classList.add('hidden');
+                adultGaugeContainer.classList.remove('hidden');
+                childChartContainer.classList.add('hidden');
+                document.getElementById('resultCategoryLabel').innerText = "ผลการประเมินภาวะโภชนาการ (ผู้ใหญ่)";
+            }
+            calculate();
+        }
+
+        // Toggle Age Entry Mode (Years/Months vs Date of Birth)
+        function toggleAgeInputMode() {
+            const ageDirect = document.getElementById('ageDirectContainer');
+            const ageDob = document.getElementById('ageDobContainer');
+            const toggleText = document.getElementById('ageModeToggleText');
+
+            if (currentAgeMode === 'direct') {
+                currentAgeMode = 'dob';
+                ageDirect.classList.add('hidden');
+                ageDob.classList.remove('hidden');
+                toggleText.innerText = "ระบุปี+เดือน";
+            } else {
+                currentAgeMode = 'direct';
+                ageDob.classList.add('hidden');
+                ageDirect.classList.remove('hidden');
+                toggleText.innerText = "ใช้วันเกิด (DOB)";
+            }
+        }
+
+        // Calculate Age in Total Months from Date of Birth
+        function getAgeInMonths() {
+            if (currentAgeMode === 'dob') {
+                const dobVal = document.getElementById('dobInput').value;
+                if (!dobVal) return 96; // fallback 8 yrs
+                const dob = new Date(dobVal);
+                const today = new Date();
+                let months = (today.getFullYear() - dob.getFullYear()) * 12 + (today.getMonth() - dob.getMonth());
+                if (today.getDate() < dob.getDate()) months--;
+                return Math.max(24, Math.min(216, months));
+            } else {
+                const yrs = parseInt(document.getElementById('ageYears').value) || 0;
+                const mths = parseInt(document.getElementById('ageMonths').value) || 0;
+                const total = (yrs * 12) + mths;
+                return Math.max(24, Math.min(216, total));
+            }
+        }
+
+        // Helper to update text when DOB changes
+        function calculateAgeFromDob() {
+            const totalMonths = getAgeInMonths();
+            const yrs = Math.floor(totalMonths / 12);
+            const mths = totalMonths % 12;
+            const textEl = document.getElementById('dobCalculatedText');
+            textEl.innerText = `คำนวณอายุได้: ${yrs} ปี ${mths} เดือน (${totalMonths} เดือน)`;
+            textEl.classList.remove('hidden');
+            calculate();
+        }
+
+        // Interpolate LMS parameters for exact age in months
+        function getLMSParameters(std, sex, totalMonths) {
+            const dataset = LMS_DATA[std][sex];
+            if (totalMonths <= dataset[0][0]) return { L: dataset[0][1], M: dataset[0][2], S: dataset[0][3] };
+            if (totalMonths >= dataset[dataset.length - 1][0]) {
+                const last = dataset[dataset.length - 1];
+                return { L: last[1], M: last[2], S: last[3] };
+            }
+
+            for (let i = 0; i < dataset.length - 1; i++) {
+                const p1 = dataset[i];
+                const p2 = dataset[i + 1];
+                if (totalMonths >= p1[0] && totalMonths <= p2[0]) {
+                    const t = (totalMonths - p1[0]) / (p2[0] - p1[0]);
+                    return {
+                        L: p1[1] + t * (p2[1] - p1[1]),
+                        M: p1[2] + t * (p2[2] - p1[2]),
+                        S: p1[3] + t * (p2[3] - p1[3])
+                    };
+                }
+            }
+            return { L: dataset[0][1], M: dataset[0][2], S: dataset[0][3] };
+        }
+
+        // Standard Normal Cumulative Distribution Function for Percentile Approximation
+        function zToPercentile(z) {
+            const t = 1 / (1 + 0.2316419 * Math.abs(z));
+            const d = 0.3989423 * Math.exp(-z * z / 2);
+            const prob = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+            const pct = z > 0 ? 1 - prob : prob;
+            return Math.min(99.9, Math.max(0.1, pct * 100));
+        }
+
+        // MAIN CALCULATION FUNCTION
+        function calculate() {
+            const weight = parseFloat(document.getElementById('weight').value);
+            const height = parseFloat(document.getElementById('height').value);
+
+            if (!weight || !height || weight <= 0 || height <= 0) {
+                return; // Wait for valid input
+            }
+
+            const bmi = weight / Math.pow(height / 100, 2);
+            const bmiFormatted = bmi.toFixed(1);
+            document.getElementById('bmiValue').innerText = bmiFormatted;
+
+            if (currentMode === 'adult') {
+                evaluateAdultBMI(weight, height, bmi);
+            } else {
+                evaluateChildGrowth(weight, height, bmi);
+            }
+        }
+
+        // EVALUATE ADULT BMI
+        function evaluateAdultBMI(weight, height, bmi) {
+            const standard = document.getElementById('adultStandard').value;
+            const isAsian = standard === 'asian';
+            
+            let statusText = "";
+            let badgeClass = "";
+            let badgeText = "";
+            let minHealthyBmi = 18.5;
+            let maxHealthyBmi = isAsian ? 22.9 : 24.9;
+
+            document.getElementById('metric2Title').innerText = "เกณฑ์อ้างอิง";
+            document.getElementById('metric2Value').innerText = isAsian ? "เกณฑ์เอเชีย" : "เกณฑ์สากล";
+            document.getElementById('metric2Subtext').innerText = isAsian ? "WHO Asian Cutoffs" : "WHO International";
+
+            document.getElementById('metric3Title').innerText = "ระดับความเสี่ยง";
+            document.getElementById('gaugeNormalMax').innerText = isAsian ? "23.0" : "25.0";
+            document.getElementById('gaugeOverweightMax').innerText = isAsian ? "25.0" : "30.0";
+
+            if (bmi < 18.5) {
+                statusText = "น้ำหนักน้อย / ผอม (Underweight)";
+                badgeClass = "bg-sky-100 text-sky-700 border-sky-300";
+                badgeText = "🔵 ผอม / น้ำหนักน้อย";
+                document.getElementById('metric3Value').innerText = "ต่ำกว่าเกณฑ์";
+                document.getElementById('metric3Subtext').innerText = "เสี่ยงขาดสารอาหาร";
+            } else if (bmi <= maxHealthyBmi) {
+                statusText = "น้ำหนักปกติ / สุขภาพดี (Normal Weight)";
+                badgeClass = "bg-emerald-100 text-emerald-700 border-emerald-300";
+                badgeText = "🟢 ปกติ / สุขภาพดี";
+                document.getElementById('metric3Value').innerText = "ปกติ";
+                document.getElementById('metric3Subtext').innerText = "ความเสี่ยงโรคต่ำ";
+            } else if ((isAsian && bmi <= 24.9) || (!isAsian && bmi <= 29.9)) {
+                statusText = "ท้วม / น้ำหนักเกิน (Overweight)";
+                badgeClass = "bg-amber-100 text-amber-800 border-amber-300";
+                badgeText = "🟡 ท้วม / น้ำหนักเกิน";
+                document.getElementById('metric3Value').innerText = "เสี่ยงปานกลาง";
+                document.getElementById('metric3Subtext').innerText = "เสี่ยงต่อโรค NCDs";
+            } else {
+                statusText = "อ้วน / เสี่ยงต่อโรค (Obese)";
+                badgeClass = "bg-rose-100 text-rose-700 border-rose-300";
+                badgeText = "🔴 อ้วน / เสี่ยงโรคสูง";
+                document.getElementById('metric3Value').innerText = "เสี่ยงสูง";
+                document.getElementById('metric3Subtext').innerText = "ควรได้รับคำปรึกษาแพทย์";
+            }
+
+            // Update UI elements
+            document.getElementById('resultStatusText').innerText = statusText;
+            const badgeEl = document.getElementById('statusBadge');
+            badgeEl.className = `self-start sm:self-center px-3.5 py-1.5 rounded-full text-xs font-bold border flex items-center gap-1.5 ${badgeClass}`;
+            badgeEl.innerHTML = badgeText;
+
+            // Healthy Weight Range Calculation
+            const hMeter = height / 100;
+            const minW = (minHealthyBmi * Math.pow(hMeter, 2)).toFixed(1);
+            const maxW = (maxHealthyBmi * Math.pow(hMeter, 2)).toFixed(1);
+            document.getElementById('healthyWeightRange').innerText = `${minW} - ${maxW} กิโลกรัม`;
+
+            if (weight < minW) {
+                const diff = (minW - weight).toFixed(1);
+                document.getElementById('weightDiffAdvice').innerText = `💡 แนะนำควรเพิ่มน้ำหนักอีกประมาณ ${diff} กก. เพื่อให้อยู่ในเกณฑ์สุขภาพดี`;
+            } else if (weight > maxW) {
+                const diff = (weight - maxW).toFixed(1);
+                document.getElementById('weightDiffAdvice').innerText = `💡 แนะนำควรลดน้ำหนักลงประมาณ ${diff} กก. เพื่อให้อยู่ในเกณฑ์สุขภาพดี`;
+            } else {
+                document.getElementById('weightDiffAdvice').innerText = `🎉 ยินดีด้วย! น้ำหนักของคุณอยู่ในเกณฑ์สมส่วนและเหมาะสมแล้ว`;
+            }
+
+            // Update Adult Gauge Pointer
+            const pointer = document.getElementById('gaugePointer');
+            document.getElementById('pointerBmiTag').innerText = bmiFormatted;
+            
+            // Map BMI range [15 to 35] to percent [0% to 100%]
+            let percent = ((bmi - 15) / (35 - 15)) * 100;
+            percent = Math.max(2, Math.min(98, percent));
+            pointer.style.left = `${percent}%`;
+
+            // Adult Recommendations
+            renderAdultAdvice(bmi, isAsian);
+        }
+
+        // EVALUATE CHILD GROWTH (<18 YRS)
+        function evaluateChildGrowth(weight, height, bmi) {
+            const sex = document.querySelector('input[name="sex"]:checked').value;
+            const std = document.getElementById('childStandard').value;
+            const ageMonths = getAgeInMonths();
+
+            const { L, M, S } = getLMSParameters(std, sex, ageMonths);
+
+            // Calculate Z-Score
+            let zScore = 0;
+            if (L !== 0) {
+                zScore = (Math.pow(bmi / M, L) - 1) / (L * S);
+            } else {
+                zScore = Math.log(bmi / M) / S;
+            }
+
+            const percentile = zToPercentile(zScore);
+            const zScoreFormatted = (zScore > 0 ? "+" : "") + zScore.toFixed(2);
+            
+            document.getElementById('metric2Title').innerText = "ค่าเบี่ยงเบน Z-Score";
+            document.getElementById('metric2Value').innerText = `${zScoreFormatted} SD`;
+            document.getElementById('metric2Subtext').innerText = `เกณฑ์ ${std === 'moph' ? 'กรมอนามัย' : 'WHO 2007'}`;
+
+            document.getElementById('metric3Title').innerText = "เปอร์เซ็นไทล์ (Percentile)";
+            document.getElementById('metric3Value').innerText = `${percentile.toFixed(0)}th`;
+            document.getElementById('metric3Subtext').innerText = `เทียบเด็กวัยเดียวกัน`;
+
+            let statusText = "";
+            let badgeClass = "";
+            let badgeText = "";
+
+            if (zScore < -3) {
+                statusText = "ผอมมาก (Severely Thin)";
+                badgeClass = "bg-indigo-100 text-indigo-800 border-indigo-300";
+                badgeText = "🔵 ผอมมาก";
+            } else if (zScore < -2) {
+                statusText = "ผอม / ต่ำกว่าเกณฑ์ (Thinness)";
+                badgeClass = "bg-sky-100 text-sky-800 border-sky-300";
+                badgeText = "🔵 ผอม / น้ำหนักน้อย";
+            } else if (zScore <= 1) {
+                statusText = "น้ำหนักตามเกณฑ์ / สมส่วน (Normal Weight)";
+                badgeClass = "bg-emerald-100 text-emerald-800 border-emerald-300";
+                badgeText = "🟢 น้ำหนักตามเกณฑ์";
+            } else if (zScore <= 2) {
+                statusText = "เริ่มอ้วน / เสี่ยงต่อน้ำหนักเกิน (Overweight)";
+                badgeClass = "bg-amber-100 text-amber-800 border-amber-300";
+                badgeText = "🟡 เริ่มอ้วน / เสี่ยง";
+            } else {
+                statusText = "อ้วน (Obesity)";
+                badgeClass = "bg-rose-100 text-rose-800 border-rose-300";
+                badgeText = "🔴 อ้วน";
+            }
+
+            document.getElementById('resultStatusText').innerText = statusText;
+            const badgeEl = document.getElementById('statusBadge');
+            badgeEl.className = `self-start sm:self-center px-3.5 py-1.5 rounded-full text-xs font-bold border flex items-center gap-1.5 ${badgeClass}`;
+            badgeEl.innerHTML = badgeText;
+
+            // Target Healthy Weight Range for Child (Z between -2 and +1)
+            const hMeter = height / 100;
+            const bmiMinNormal = M * Math.pow(1 + L * S * (-2), 1 / L);
+            const bmiMaxNormal = M * Math.pow(1 + L * S * (1), 1 / L);
+            const minW = (bmiMinNormal * Math.pow(hMeter, 2)).toFixed(1);
+            const maxW = (bmiMaxNormal * Math.pow(hMeter, 2)).toFixed(1);
+
+            document.getElementById('healthyWeightRange').innerText = `${minW} - ${maxW} กิโลกรัม`;
+
+            if (weight < minW) {
+                const diff = (minW - weight).toFixed(1);
+                document.getElementById('weightDiffAdvice').innerText = `💡 ควรได้รับโภชนาการเสริมเพื่อเพิ่มน้ำหนักอีกประมาณ ${diff} กก. เข้าสู่เกณฑ์ปกติ`;
+            } else if (weight > maxW) {
+                const diff = (weight - maxW).toFixed(1);
+                document.getElementById('weightDiffAdvice').innerText = `💡 แนะนำเน้นปรับกิจกรรมทางกายและโภชนาการสมวัย ชะลอการเพิ่มน้ำหนักประมาณ ${diff} กก.`;
+            } else {
+                document.getElementById('weightDiffAdvice').innerText = `🎉 อัตราการเจริญเติบโตด้านน้ำหนักสมส่วนตามเกณฑ์พัฒนาการ`;
+            }
+
+            // Render Child Growth Chart
+            renderChildGrowthChart(std, sex, ageMonths, bmi);
+
+            // Child Recommendations
+            renderChildAdvice(zScore);
+        }
+
+        // RENDER CHILD GROWTH CHART USING CHART.JS
+        function renderChildGrowthChart(std, sex, userAgeMonths, userBmi) {
+            const ctx = document.getElementById('growthChartCanvas').getContext('2d');
+            const dataset = LMS_DATA[std][sex];
+
+            const labels = [];
+            const p3Line = [];
+            const p15Line = [];
+            const p50Line = [];
+            const p85Line = [];
+            const p97Line = [];
+            const userPlot = [];
+
+            dataset.forEach(item => {
+                const m = item[0];
+                const yrs = (m / 12).toFixed(0);
+                labels.push(`${yrs} ปี`);
+
+                const L = item[1], M = item[2], S = item[3];
+                const calcBmi = (z) => (M * Math.pow(1 + L * S * z, 1 / L)).toFixed(1);
+
+                p3Line.push(calcBmi(-1.88));  // ~3rd percentile
+                p15Line.push(calcBmi(-1.03)); // ~15th percentile
+                p50Line.push(calcBmi(0));     // Median 50th percentile
+                p85Line.push(calcBmi(1.03));  // ~85th percentile
+                p97Line.push(calcBmi(1.88));  // ~97th percentile
+
+                if (Math.abs(m - userAgeMonths) < 6) {
+                    userPlot.push(userBmi.toFixed(1));
+                } else {
+                    userPlot.push(null);
+                }
+            });
+
+            if (growthChartInstance) {
+                growthChartInstance.destroy();
+            }
+
+            growthChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'ตำแหน่งของคุณ',
+                            data: userPlot,
+                            borderColor: '#0284c7',
+                            backgroundColor: '#0284c7',
+                            pointRadius: 7,
+                            pointHoverRadius: 9,
+                            showLine: false,
+                            z: 10
+                        },
+                        { label: '97th Percentile (อ้วน)', data: p97Line, borderColor: '#f43f5e', borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, fill: false },
+                        { label: '85th Percentile (เริ่มอ้วน)', data: p85Line, borderColor: '#f59e0b', borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, fill: false },
+                        { label: '50th Percentile (ค่าเฉลี่ย)', data: p50Line, borderColor: '#10b981', borderWidth: 2, pointRadius: 0, fill: false },
+                        { label: '15th Percentile (สมส่วน)', data: p15Line, borderColor: '#0ea5e9', borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, fill: false },
+                        { label: '3rd Percentile (ผอม)', data: p3Line, borderColor: '#6366f1', borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, fill: false }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top', labels: { boxWidth: 12, font: { family: 'Kanit', size: 10 } } },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        x: { title: { display: true, text: 'ช่วงอายุ (ปี)', font: { family: 'Kanit', size: 11 } } },
+                        y: { title: { display: true, text: 'ค่า BMI (kg/m²)', font: { family: 'Kanit', size: 11 } }, min: 12, max: 32 }
+                    }
+                }
+            });
+        }
+
+        // ADULT ADVICE GENERATOR
+        function renderAdultAdvice(bmi, isAsian) {
+            const nutEl = document.getElementById('nutritionAdvice');
+            const exeEl = document.getElementById('exerciseAdvice');
+
+            if (bmi < 18.5) {
+                nutEl.innerText = "เน้นทานอาหารที่มีพลังงานและโปรตีนสูงขึ้น เพิ่มมื้อย่อยวันละ 4-5 มื้อ ทานคาร์โบไฮเดรตเชิงซ้อนและไขมันดี เช่น ถั่ว อะโวคาโด ปลาทะเล";
+                exeEl.innerText = "เน้นการออกกำลังกายแบบแรงต้าน (Strength / Weight Training) 2-3 วัน/สัปดาห์ เพื่อเสริมสร้างมวลกล้ามเนื้อ หลีกเลี่ยงคาร์ดิโอที่หนักเกินไป";
+            } else if ((isAsian && bmi <= 22.9) || (!isAsian && bmi <= 24.9)) {
+                nutEl.innerText = "รักษาโภชนาการสมดุล (Plate Model: ผัก 2 ส่วน, ข้าวแป้ง 1 ส่วน, โปรตีนไขมันต่ำ 1 ส่วน) ดื่มน้ำสะอาดวันละ 2-2.5 ลิตร ลดหวาน มัน เค็ม";
+                exeEl.innerText = "ออกกำลังกายระดับปานกลาง (Moderate Cardio) อย่างน้อย 150 นาที/สัปดาห์ ควบคู่กับการเวทเทรนนิ่งเพื่อรักษามวลกล้ามเนื้อและอัตราเผาผลาญ";
+            } else if ((isAsian && bmi <= 24.9) || (!isAsian && bmi <= 29.9)) {
+                nutEl.innerText = "ลดการบริโภคน้ำตาล เครื่องดื่มหวาน ขนมคบเคี้ยว และอาหารแปรรูป คุมปริมาณแคลอรีรวมวันละ 300-500 kcal เน้นผักใบเขียวและโปรตีนไขมันต่ำ";
+                exeEl.innerText = "เพิ่มกิจกรรมทางกาย (Active Lifestyle) เดินให้ได้ 8,000-10,000 ก้าว/วัน คาร์ดิโอต่อเนื่อง 30-45 นาที 4-5 วัน/สัปดาห์ เพื่อกระตุ้นการเผาผลาญไขมัน";
+            } else {
+                nutEl.innerText = "ปรับพฤติกรรมโภชนาการอย่างเข้มงวด ลดน้ำตาล อาหารทอด และแป้งขัดขาว ตรวจสอบภาวะดื้ออินซูลินหรือความเสี่ยง NCDs ควรปรึกษานักกำหนดอาหาร";
+                exeEl.innerText = "เริ่มต้นด้วยการออกกำลังกายแรงกระแทกต่ำ เช่น เดินเร็ว ว่ายน้ำ ปั่นจักรยาน 30 นาที/วัน ป้องกันการบาดเจ็บของข้อเข่าและข้อเท้า";
+            }
+        }
+
+        // CHILD ADVICE GENERATOR
+        function renderChildAdvice(zScore) {
+            const nutEl = document.getElementById('nutritionAdvice');
+            const exeEl = document.getElementById('exerciseAdvice');
+
+            if (zScore < -2) {
+                nutEl.innerText = "ส่งเสริมอาหารที่มีโปรตีนคุณภาพสูง (ไข่ นม ปลา เนื้อสัตว์) เสริมแคลเซียมและสังกะสีเพื่อความสูง ไม่ควรงดมื้ออาหาร ทานอาหารให้ครบ 3 มื้อหลัก 2 มื้อว่าง";
+                exeEl.innerText = "เน้นการเล่นและกิจกรรมกลางแจ้ง เพื่อกระตุ้นความอยากอาหารและสร้างมวลกระดูก ควบคู่กับการนอนหลับพักผ่อนให้เพียงพอ 9-11 ชั่วโมง/วัน";
+            } else if (zScore <= 1) {
+                nutEl.innerText = "โภชนาการสมวัย รับประทานอาหารครบ 5 หมู่ ดื่มนมรสจืดวันละ 2 แก้ว รับประทานผักผลไม้สดเป็นประจำ เพื่อส่งเสริมพัฒนาการและการเจริญเติบโตเต็มศักยภาพ";
+                exeEl.innerText = "ส่งเสริมกิจกรรมทางกายสะสมอย่างน้อย 60 นาที/วัน (วิ่งเล่น วาดภาพ กีฬา) จำกัดเวลาหน้าจอ (Screen Time) ไม่เกิน 2 ชั่วโมง/วัน";
+            } else if (zScore <= 2) {
+                nutEl.innerText = "ชะลอการเพิ่มน้ำหนักแต่ไม่ใช้วิธีอดอาหาร เน้นลดหวาน มัน เค็ม งดน้ำหวานขนมซอง เปลี่ยนขนมว่างเป็นผลไม้สดรสไม่หวาน และดื่มนมรสจืด low-fat";
+                exeEl.innerText = "เพิ่มกิจกรรมทางกายที่สนุกสนาน เช่น ขี่จักรยาน ว่ายน้ำ กระโดดเชือก 60 นาทีทุกวัน ชวนครอบครัวทำกิจกรรมขยับร่างกายร่วมกัน";
+            } else {
+                nutEl.innerText = "ปรับพฤติกรรมการกินทั้งครอบครัว เลี่ยงอาหารพลังงานสูง อาหารฟาสต์ฟู้ด ไม่ใช้ขนมเป็นของรางวัล เน้นผักและโปรตีน ควรปรึกษากุมารแพทย์เพื่อประเมินพัฒนาการ";
+                exeEl.innerText = "เน้นการเคลื่อนไหวร่างกายสม่ำเสมอ เริ่มต้นจากกิจกรรมแรงกระแทกต่ำ ปรับลดเวลาการนั่งหรือนอนดูจอสมาร์ทโฟน/ทีวี";
+            }
+        }
+
+        // PRESET SAMPLE DATA FILLER
+        function loadPreset(presetKey) {
+            switch (presetKey) {
+                case 'child_boy_8':
+                    switchMode('child');
+                    document.querySelector('input[name="sex"][value="male"]').checked = true;
+                    document.getElementById('weight').value = 25.5;
+                    document.getElementById('height').value = 127;
+                    document.getElementById('ageYears').value = 8;
+                    document.getElementById('ageMonths').value = 0;
+                    break;
+                case 'child_girl_12':
+                    switchMode('child');
+                    document.querySelector('input[name="sex"][value="female"]').checked = true;
+                    document.getElementById('weight').value = 52.0;
+                    document.getElementById('height').value = 150;
+                    document.getElementById('ageYears').value = 12;
+                    document.getElementById('ageMonths').value = 4;
+                    break;
+                case 'adult_man_30':
+                    switchMode('adult');
+                    document.querySelector('input[name="sex"][value="male"]').checked = true;
+                    document.getElementById('weight').value = 68.0;
+                    document.getElementById('height').value = 175;
+                    document.getElementById('adultAge').value = 30;
+                    break;
+                case 'adult_woman_40':
+                    switchMode('adult');
+                    document.querySelector('input[name="sex"][value="female"]').checked = true;
+                    document.getElementById('weight').value = 65.0;
+                    document.getElementById('height').value = 158;
+                    document.getElementById('adultAge').value = 40;
+                    break;
+            }
+            calculate();
+        }
+
+        // RESET FORM
+        function resetForm() {
+            document.getElementById('bmiForm').reset();
+            document.getElementById('weight').value = '';
+            document.getElementById('height').value = '';
+            document.getElementById('bmiValue').innerText = '--';
+            document.getElementById('metric2Value').innerText = '--';
+            document.getElementById('metric3Value').innerText = '--';
+            document.getElementById('resultStatusText').innerText = 'กรุณากรอกข้อมูลและกดคำนวณ';
+            document.getElementById('statusBadge').className = 'self-start sm:self-center px-3.5 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1.5';
+            document.getElementById('statusBadge').innerHTML = '<span class="w-2 h-2 rounded-full bg-slate-400"></span> รอคำนวณ';
+            document.getElementById('healthyWeightRange').innerText = '-- - -- กิโลกรัม';
+            document.getElementById('weightDiffAdvice').innerText = 'กรุณากรอกข้อมูลส่วนสูงและน้ำหนัก';
+        }
+
+        // INITIALIZATION ON PAGE LOAD
+        window.onload = function() {
+            switchMode('child');
+            loadPreset('child_boy_8');
+        };
+    </script>
+</body>
+</html>
